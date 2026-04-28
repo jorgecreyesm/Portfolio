@@ -1,0 +1,396 @@
+---
+title: "Data Science Salaries Project"
+output: Notebook
+---
+
+# The Social Architecture of Tech
+
+A Quantitative Inquiry into Labor Stratification & Institutional Power
+Project Overview
+In the modern "meritocratic" economy, the technology sector is often viewed as a level playing field where technical skill is the only currency. This project utilizes the Levels.fyi dataset to interrogate that assumption. By analyzing nearly 62,000 salary entries through the lens of Stratification Theory, this study explores how education, experience, and institutional prestige intersect to create disparate economic outcomes.
+
+```{r}
+library(tidyverse)
+
+```
+
+
+
+
+
+```{r}
+#getwd()
+#setwd('/Users/jorgereyeso/Documents/MSDS/Data Analytics in R 650')
+salaries_df <- read_csv('data_science_salaries.csv')
+view(salaries_df)
+unique(salaries_df$title)
+#ensure we use data scientists
+salaries_df <- salaries_df %>%
+  filter(str_detect(title, "(?i)Data Scientist|Business Analyst"))
+```
+
+
+
+
+I. Data Preparation & Categorization
+To analyze social stratification, we first must transform raw data into meaningful sociological categories. The primary focus here is Credentialism—the value placed on specific degrees regardless of the actual skill set. We consolidate multiple binary indicators into a single Education_Level factor to map the hierarchy of academic attainment.
+
+
+```{r}
+# 1. Consolidate the binary education columns into one categorical factor
+salaries_df <- salaries_df %>%
+  mutate(Education_Level = case_when(
+    Doctorate_Degree == 1 ~ "Doctorate",
+    Masters_Degree == 1 ~ "Masters",
+    Bachelors_Degree == 1 ~ "Bachelors",
+    Highschool == 1 ~ "High School",
+    Some_College == 1 ~ "Some College",
+    TRUE ~ "Not Specified"
+  )) %>%
+  # Convert to a factor with a specific order for better plotting
+  mutate(Education_Level = factor(Education_Level, 
+                                  levels = c("Not Specified", "High School", "Some College", 
+                                             "Bachelors", "Masters", "Doctorate")))
+# 2. Let's also create a 'Tenure_Ratio' 
+# This helps us see if people stay at companies or jump around
+salaries_df <- salaries_df %>%
+  mutate(Tenure_Ratio = yearsatcompany / yearsofexperience)
+
+```
+
+
+
+II. Credentialism or Capability? The Education Premium
+Context
+Sociologists debate whether a degree represents Human Capital (actualized skills) or acts as a Screening Device for elite firms to filter applicants. By visualizing the distribution of total compensation, we can identify where the "Master’s Premium" actually manifests in the pay scale.
+
+
+```{r}
+# Filtering for the three main tiers to keep the chart clean
+edu_comparison <- salaries_df %>%
+  filter(Education_Level %in% c("Bachelors", "Masters", "Doctorate"))
+
+ggplot(edu_comparison, aes(x = Education_Level, y = totalyearlycompensation, fill = Education_Level)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.colour = NA) +
+  scale_y_log10(labels = scales::dollar) + # Log scale helps handle the massive salary range
+  theme_minimal() +
+  labs(
+    title = "The ROI of Advanced Degrees in Tech",
+    subtitle = "Distribution of Total Compensation by Education Level",
+    x = "Degree Attained",
+    y = "Total Yearly Compensation (Log Scale)",
+    caption = "Data Source: Levels.fyi"
+  ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position = "none")
+```
+
+Analysis
+The distribution reveals a clear upward shift in median compensation as educational attainment increases. However, the significant overlap between Bachelor’s and Master’s degrees suggests a high degree of Functional Equivalency. While an advanced degree provides a higher "floor," the top-tier earners remain relatively consistent across degree types, suggesting that at the extreme high end of the market, other factors—such as institutional affiliation—may override formal credentials.
+
+III. Cumulative Advantage: The Experience Multiplier
+Context
+Drawing on the Theory of Cumulative Advantage, we ask: Does an advanced degree provide a temporary "head start" that vanishes as a worker gains experience, or does it act as an accelerant that widens the wage gap throughout a career?
+
+
+```{r}
+# Focus on the most common degree paths for a cleaner visual
+main_degrees <- salaries_df %>%
+  filter(Education_Level %in% c("Bachelors", "Masters", "Doctorate"))
+
+ggplot(main_degrees, aes(x = yearsofexperience, y = totalyearlycompensation, color = Education_Level)) +
+  geom_point(alpha = 0.2) + # Using low alpha because there are thousands of points
+  geom_smooth(method = "lm", se = FALSE, size = 1.2) + # Linear regression lines
+  scale_y_log10(labels = scales::dollar) +
+  theme_minimal() +
+  labs(
+    title = "The Experience Multiplier by Degree Type",
+    subtitle = "How compensation scales with years of experience",
+    x = "Years of Experience",
+    y = "Total Compensation (Log Scale)",
+    color = "Education Level"
+  ) +
+  scale_color_brewer(palette = "Dark2")
+```
+
+Analysis
+The regression analysis shows that the advantage of a Master’s degree is remarkably stable. The trajectories for Bachelors and Masters holders remain roughly parallel over a 20-year period. This suggests that the Master's degree acts as a structural permanent advantage—it places the worker on a higher-earning track from the outset, a lead that the market rarely "corrects" through experience alone.
+
+
+IV. Institutional Hegemony: The Firm Effect
+Context
+In the "Superstar Firm" economy, where one works may be more important than what one knows. We compare the compensation structures of the top 10 tech giants to understand how firm-level power dictates the value of labor.
+
+```{r}
+# 1. Find the Top 10 companies with the most entries
+top_10_firms <- salaries_df %>%
+  count(company, sort = TRUE) %>%
+  top_n(10) %>%
+  pull(company)
+
+# 2. Plot compensation distribution for just these 'Powerhouse' institutions
+ggplot(salaries_df %>% filter(company %in% top_10_firms), 
+       aes(x = fct_reorder(company, totalyearlycompensation, .fun = median), 
+           y = totalyearlycompensation, fill = company)) +
+  geom_boxplot(outlier.alpha = 0.1) +
+  coord_flip() + # Flipping makes company names easier to read
+  scale_y_log10(labels = scales::dollar) +
+  theme_minimal() +
+  labs(
+    title = "Institutional Power: The Tech Giants' Pay Scales",
+    subtitle = "Comparing Total Compensation across the 10 most frequent companies",
+    x = "Company",
+    y = "Total Yearly Compensation (Log Scale)"
+  ) +
+  theme(legend.position = "none")
+```
+
+Analysis
+The data highlights a stark Institutional Hierarchy. The "Prestige Gap" between "New Economy" leaders and "Legacy Tech" firms is profound. The fact that the bottom 25% of earners at a prestige firm often out-earn the median worker at a legacy firm suggests Market Hegemony. Elite firms do not just pay for skill; they pay to "bank" talent, effectively setting a "Prestige Floor" that excludes the broader labor market.
+
+V. Geography as Destiny: The California Premium
+Context
+Despite the "Remote Revolution," physical location remains a primary determinant of economic status. This section analyzes Spatial Inequality by comparing compensation within California to the rest of the United States.
+
+```{r}
+# Extracting the state from the 'location' string (e.g., "Redwood City, CA")
+salaries_df <- salaries_df %>%
+  mutate(state = str_extract(location, "[A-Z]{2}$")) %>%
+  filter(!is.na(state)) %>%
+  mutate(is_california = ifelse(state == "CA", "California", "Other US States"))
+
+# Visualizing the pay gap by geography
+ggplot(salaries_df, aes(x = is_california, y = totalyearlycompensation, fill = is_california)) +
+  geom_boxplot(outlier.alpha = 0.1) +
+  scale_y_log10(labels = scales::dollar) +
+  theme_minimal() +
+  labs(
+    title = "Geography as Destiny: The California Premium",
+    subtitle = "Comparing Total Compensation: CA vs. the rest of the US",
+    x = "Region",
+    y = "Total Compensation (Log Scale)"
+  ) +
+  scale_fill_manual(values = c("#003262", "#FDB515")) +
+  theme(legend.position = "none")
+```
+
+Analysis
+The analysis confirms a significant geographic premium for California-based roles. This suggests that Agglomeration Economies—the benefits of firms and workers being physically near each other—still outweigh the cost-saving benefits of geographic decentralization. Location acts as a powerful structural filter for total compensation.
+
+Conclusion
+This project demonstrates that while the technology sector is a high-reward industry, it remains deeply structured by traditional social forces: Credentials, Institutional Power, and Geography. By applying computational methods to labor data, we can move beyond anecdotal evidence to map the actual structures of modern economic inequality.
+
+VI. Beyond the Nominal Paycheck: The Housing Constraint
+Context
+In Section V, we established a "California Premium," where geographic location acts as a primary determinant of total compensation. However, a sociological critique of labor value is incomplete if it only measures income. We must account for the "spatial tax" of the housing market. Drawing on Cost-of-Living Theory, we now investigate whether the high-prestige roles identified in previous sections are effectively neutralized by the extreme extraction of the residential real estate market.
+
+Data Synthesis: Aligning Labor and Real Estate Markets
+To move from nominal pay to real purchasing power, we must synchronize the Levels.fyi compensation data with longitudinal real estate metrics from Zillow (ZHVI). This requires a multi-stage join, aggregating local market data into state-level and regional categories to ensure a clean geospatial match.
+
+```{r}
+# 1. Load datasets
+housing_raw <- read_csv("housing_values_zillow.csv")
+rental_raw <- read_csv("rental_cost_zillow.csv")
+
+# 2. Process Housing (Pivoted, Cleaned, and Summarized in one chain)
+housing_yearly <- housing_raw %>%
+  pivot_longer(cols = contains("-"), names_to = "date_str", values_to = "median_home_value") %>%
+  mutate(year = as.integer(year(as.Date(date_str)))) %>%
+  group_by(RegionName = trimws(RegionName), StateName = trimws(StateName), year) %>%
+  summarize(avg_median_home_value = mean(median_home_value, na.rm = TRUE), .groups = "drop")
+
+# 3. Process Rental (Pivoted, Cleaned, and Summarized in one chain)
+rental_yearly <- rental_raw %>%
+  pivot_longer(cols = contains("-"), names_to = "date_str", values_to = "median_rent") %>%
+  mutate(year = as.integer(year(as.Date(date_str)))) %>%
+  group_by(RegionName = trimws(RegionName), StateName = trimws(StateName), year) %>%
+  summarize(avg_median_rent = mean(median_rent, na.rm = TRUE), .groups = "drop")
+
+# 4. Average the Zillow data at the State level
+state_housing <- housing_yearly %>%
+  group_by(StateName, year) %>%
+  summarize(state_avg_home_value = mean(avg_median_home_value, na.rm = TRUE), .groups = "drop")
+
+state_rental <- rental_yearly %>%
+  group_by(StateName, year) %>%
+  summarize(state_avg_rent = mean(avg_median_rent, na.rm = TRUE), .groups = "drop")
+
+# 5. Clean the Salary data (Just grabbing the State)
+enriched_salaries <- salaries_df %>%
+  separate(location, into = c("city", "state_code"), sep = ", ", remove = FALSE) %>%
+  mutate(
+    state_code = trimws(state_code),
+    yearsalary = as.integer(totalyearlycompensation)
+  )
+
+# 6. The Simple Join (Connecting only by State and Year)
+final_data <- enriched_salaries %>%
+  left_join(state_housing, by = c("state_code" = "StateName", "totalyearlycompensation" = "year")) %>%
+  left_join(state_rental,  by = c("state_code" = "StateName", "totalyearlycompensation" = "year"))
+
+
+
+view(final_data)
+```
+
+
+VII. The Purchasing Power Frontier
+Analysis
+By plotting Median Compensation against Average Home Value, we can visualize the Purchasing Power Frontier. States that sit high on the Y-axis represent high-barrier entries into homeownership. This scatter plot allows us to identify "Efficient" markets where Data Scientists maintain high pay without the corresponding housing penalty.
+
+
+```{r}
+library(ggplot2)
+library(scales) 
+library(dplyr)
+
+# 1. Calculate the Median Compensation per State
+state_medians <- final_data %>%
+  group_by(state_code) %>%
+  summarize(
+    median_compensation = median(totalyearlycompensation, na.rm = TRUE),
+    state_avg_home_value = mean(state_avg_home_value, na.rm = TRUE),
+    job_count = n(),
+    .groups = "drop"
+  )
+view(state_medians)
+```
+
+
+
+```{r}
+
+
+# 1. Calculate and completely clean the data
+rent_data <- final_data %>%
+  group_by(state_code) %>%
+  summarize(
+    median_comp = median(totalyearlycompensation, na.rm = TRUE),
+    yearly_rent = mean(state_avg_rent, na.rm = TRUE) * 12, 
+    job_count = n(),
+    .groups = "drop"
+  ) %>%
+  filter(job_count >= 10) %>%
+  mutate(rent_pct_of_income = yearly_rent / median_comp) %>%
+  # THE FIX: Remove any rows with missing states or missing rent calculations
+  filter(!is.na(state_code) & !is.na(rent_pct_of_income)) 
+
+# 2. Build the Bar Chart using reorder() instead of fct_reorder()
+ggplot(rent_data, aes(x = reorder(state_code, -rent_pct_of_income), y = rent_pct_of_income)) +
+  geom_col(aes(fill = rent_pct_of_income > 0.30), show.legend = FALSE) +
+  # Note: updated to 'linewidth = 1' to avoid newer ggplot deprecation warnings
+  geom_hline(yintercept = 0.30, color = "#C0392B", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 3, y = 0.32, label = "30% Rent Burden Threshold", color = "#C0392B", fontface = "bold") +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("TRUE" = "#E67E22", "FALSE" = "#3498DB")) +
+  labs(
+    title = "Which States Make Data Scientists 'Rent Burdened'?",
+    subtitle = "Percentage of median yearly compensation spent on average state rent",
+    x = "State",
+    y = "Rent as % of Income"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+
+```{r}
+library(stringr)
+
+# 1. Tag Housing data using str_detect to catch Metro names or hidden spaces
+metro_housing <- housing_yearly %>%
+  mutate(
+    macro_region = case_when(
+      StateName == "CA" & str_detect(RegionName, "San Francisco|San Jose|Sunnyvale|Mountain View|Santa Clara|Cupertino|Palo Alto|Menlo Park|San Mateo|Oakland") ~ "Silicon Valley",
+      StateName == "CA" & str_detect(RegionName, "Los Angeles|San Diego|Irvine|Santa Monica|El Segundo|Pasadena") ~ "Southern California",
+      StateName == "WA" & str_detect(RegionName, "Seattle|Bellevue|Redmond|Tacoma|Kirkland|Bothell") ~ "Seattle-Tacoma",
+      StateName %in% c("NY", "NJ", "CT", "PA", "MA") ~ "NY Metro & PA/NE",
+      StateName %in% c("IL", "WI") ~ "Chicago & Wisconsin",
+      StateName %in% c("DC", "MD", "VA") ~ "DC Metro",
+      StateName %in% c("TX", "AZ") ~ "Texas & Arizona",
+      TRUE ~ "Exclude"
+    )
+  ) %>%
+  filter(macro_region != "Exclude") %>%
+  group_by(macro_region, year) %>%
+  summarize(metro_avg_home_value = mean(avg_median_home_value, na.rm = TRUE), .groups = "drop")
+
+# 2. Tag Rental data using the exact same str_detect logic
+metro_rental <- rental_yearly %>%
+  mutate(
+    macro_region = case_when(
+      StateName == "CA" & str_detect(RegionName, "San Francisco|San Jose|Sunnyvale|Mountain View|Santa Clara|Cupertino|Palo Alto|Menlo Park|San Mateo|Oakland") ~ "Silicon Valley",
+      StateName == "CA" & str_detect(RegionName, "Los Angeles|San Diego|Irvine|Santa Monica|El Segundo|Pasadena") ~ "Southern California",
+      StateName == "WA" & str_detect(RegionName, "Seattle|Bellevue|Redmond|Tacoma|Kirkland|Bothell") ~ "Seattle-Tacoma",
+      StateName %in% c("NY", "NJ", "CT", "PA", "MA") ~ "NY Metro & PA/NE",
+      StateName %in% c("IL", "WI") ~ "Chicago & Wisconsin",
+      StateName %in% c("DC", "MD", "VA") ~ "DC Metro",
+      StateName %in% c("TX", "AZ") ~ "Texas & Arizona",
+      TRUE ~ "Exclude"
+    )
+  ) %>%
+  filter(macro_region != "Exclude") %>%
+  group_by(macro_region, year) %>%
+  summarize(metro_avg_rent = mean(avg_median_rent, na.rm = TRUE), .groups = "drop")
+
+# 3. Clean Join
+metro_final_data <- metro_salaries %>%
+  left_join(metro_housing, by = c("macro_region", "salary_year" = "year")) %>%
+  left_join(metro_rental,  by = c("macro_region", "salary_year" = "year"))
+
+# 4. Recalculate the Rent Burden Chart Data
+metro_rent_data <- metro_final_data %>%
+  group_by(macro_region) %>%
+  summarize(
+    median_comp = median(totalyearlycompensation, na.rm = TRUE),
+    yearly_rent = mean(metro_avg_rent, na.rm = TRUE) * 12, 
+    job_count = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(rent_pct_of_income = yearly_rent / median_comp) %>%
+  filter(!is.na(rent_pct_of_income))
+```
+
+Synthesis
+The data reveals that despite extreme nominal rents, Data Scientists in Tier-1 tech hubs are not "rent-burdened." Their compensation—often bolstered by stock-based Institutional Hegemony—scales at a rate that keeps housing costs well below the 30% financial danger zone. This confirms that in the high-tech labor market, the California Premium in wages effectively outpaces the Regional Extraction of the real estate market.
+
+
+```{r}
+# 1. Calculate Rent Burden for the new Custom Metros
+metro_rent_data <- metro_final_data %>%
+  group_by(macro_region) %>%
+  summarize(
+    median_comp = median(totalyearlycompensation, na.rm = TRUE),
+    yearly_rent = mean(metro_avg_rent, na.rm = TRUE) * 12, 
+    job_count = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(rent_pct_of_income = yearly_rent / median_comp) %>%
+  # Ensure clean data for charting
+  filter(!is.na(rent_pct_of_income)) 
+
+# 2. Build the Threshold Chart
+ggplot(metro_rent_data, aes(x = reorder(macro_region, -rent_pct_of_income), y = rent_pct_of_income)) +
+  geom_col(aes(fill = rent_pct_of_income > 0.30), show.legend = FALSE) +
+  geom_hline(yintercept = 0.30, color = "#C0392B", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 2, y = 0.32, label = "30% Financial Burden Threshold", color = "#C0392B", fontface = "bold") +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("TRUE" = "#E67E22", "FALSE" = "#3498DB")) +
+  labs(
+    title = "Data Scientist Rent Burden by Major Tech Hub",
+    subtitle = "Percentage of median regional compensation spent on regional rent",
+    x = "Macro Region",
+    y = "Rent as % of Income"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold")
+  )
+```
+
