@@ -10,6 +10,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 # PAGE CONFIGURATION
@@ -41,7 +42,7 @@ st.markdown("""
 @st.cache_data
 def load_data():
     """Load and transform the Zillow dataset"""
-    housing_df = pd.read_csv("city_homevalue_zillow.csv")
+    housing_df = pd.read_csv(os.path.join(os.path.dirname(__file__), "city_homevalue_zillow.csv"))
     
     # Filter to California
     ca_housing = housing_df[housing_df['State'] == 'CA'].copy()
