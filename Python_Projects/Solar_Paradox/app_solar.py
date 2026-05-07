@@ -11,6 +11,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import os
 
 # PAGE CONFIG
 st.set_page_config(
@@ -56,7 +57,11 @@ REGION_PALETTE = {
 @st.cache_data
 def load_data():
     """Load and prepare solar dataset"""
-    df = pd.read_csv("solar_energy_worldwide.csv")
+    # Get the directory where this app file is located
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(app_dir, "solar_energy_worldwide.csv")
+    
+    df = pd.read_csv(csv_path)
     
     # Aggregate to country level
     country_df = (
