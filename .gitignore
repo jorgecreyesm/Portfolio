@@ -9,3 +9,4 @@
 # Allow R Markdown generated figures
 !R Projects/**/figure-gfm/*.png
 .env
+FUTURE_PROJECTS.md
