@@ -1,0 +1,52 @@
+{
+  "name": "Jorge Reyes-Ornelas",
+
+  "skills": [
+    "SQL",
+    "Python",
+    "R",
+    "Excel",
+    "PostgreSQL",
+    "Pandas",
+    "Matplotlib",
+    "Statistics",
+    "Regression",
+    "Tableau",
+    "Power BI",
+    "ETL",
+    "Data Modeling"
+  ],
+
+  "preferred_remote": true,
+  "open_to_hybrid": true,
+
+  "salary_min_annual": 55000,
+  "salary_min_hourly": 25,
+  "experience_years": 2,
+
+  "preferred_titles": [
+    "data analyst",
+    "business analyst",
+    "junior analyst",
+    "analytics"
+  ],
+
+  "preferred_locations": [
+    "remote",
+    "california",
+    "ca"
+  ],
+
+  "preferred_industries": [
+    "technology",
+    "finance",
+    "healthcare",
+    "e-commerce"
+  ],
+  "job_types": [
+    "full-time",
+    "contract"
+  ],
+
+  "top_n": 10
+}

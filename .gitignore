@@ -8,3 +8,4 @@
 
 # Allow R Markdown generated figures
 !R Projects/**/figure-gfm/*.png
+.env
