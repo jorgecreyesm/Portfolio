@@ -1,0 +1,432 @@
+---
+title: "Central Valley Crop Economics"
+author: "Jorge Reyes-Ornelas"
+date: "`r Sys.Date()`"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    theme: flatly
+    source_code: embed
+---
+
+```{css, echo=FALSE}
+/* Force white text in value boxes — flatly theme renders near-invisible otherwise */
+.value-box .value,
+.value-box .caption,
+.value-box .inner h3,
+.value-box p,
+.value-box-body,
+.value-box-body .value,
+.value-box-body p {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+```
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(scales)
+library(knitr)
+library(RColorBrewer)
+
+PROJ_ROOT <- path.expand("~/Documents/GitHub/Portfolio/R_Projects/Central_Valley_Ag_Economics")
+clean     <- readRDS(file.path(PROJ_ROOT, "data/cv_ag_clean.rds"))
+derived   <- readRDS(file.path(PROJ_ROOT, "data/cv_ag_derived.rds"))
+yield_idx <- readRDS(file.path(PROJ_ROOT, "data/cv_ag_yield_index.rds"))
+
+COUNTIES    <- c("Fresno","Tulare","Kings","Merced","San Joaquin","Stanislaus","Madera")
+COUNTY_COLS <- setNames(brewer.pal(7, "Set1"), COUNTIES)
+CROP_COLS   <- setNames(brewer.pal(6, "Set2"),
+                        c("Almonds","Cotton","Grapes","Milk","Tomatoes","Walnuts"))
+
+# Separate county vs statewide for charts that need each
+clean_county <- clean |> filter(geo_level == "county")
+clean_state  <- clean |> filter(geo_level == "state")
+
+latest_year <- clean_state |>
+  filter(metric_label == "Value of Production") |>
+  pull(year) |> max(na.rm = TRUE)
+
+if (!is.finite(latest_year)) latest_year <- max(clean$year, na.rm = TRUE)
+
+# County value data is Census-only (2012/2017/2022) — use its own latest year
+latest_year_county <- clean_county |>
+  filter(metric_label == "Value of Production") |>
+  pull(year) |> max(na.rm = TRUE)
+
+if (!is.finite(latest_year_county)) latest_year_county <- latest_year
+
+# Helper: compute paper-coordinate annotations for subplot titles.
+# Plotly does NOT remap yref="paper" y=1 from individual subplots after subplot().
+subplot_titles <- function(labels, nrows, margin = 0.07) {
+  n     <- length(labels)
+  ncols <- ceiling(n / nrows)
+  sw    <- (1 - (ncols - 1) * margin) / ncols
+  sh    <- (1 - (nrows - 1) * margin) / nrows
+  lapply(seq_along(labels), function(i) {
+    r <- ceiling(i / ncols)
+    c <- ((i - 1) %% ncols) + 1
+    list(
+      text      = labels[[i]],
+      x         = (c - 1) * (sw + margin) + sw / 2,
+      xref      = "paper",
+      y         = 1 - (r - 1) * (sh + margin),
+      yref      = "paper",
+      showarrow = FALSE,
+      xanchor   = "center",
+      yanchor   = "bottom",
+      font      = list(size = 11, color = "#333")
+    )
+  })
+}
+```
+
+Overview
+=====================================
+
+Row
+-------------------------------------
+
+### Total Value of Production — `r latest_year` {.value-box}
+```{r}
+total_val <- clean_state |>
+  filter(year == latest_year, metric_label == "Value of Production") |>
+  summarise(total = sum(value, na.rm = TRUE)) |> pull(total)
+
+val_label <- if (length(total_val) == 0 || total_val == 0) "N/A" else paste0("$", round(total_val / 1e9, 1), "B")
+valueBox(val_label, icon = "fa-seedling", color = "success")
+```
+
+### Counties Tracked {.value-box}
+```{r}
+valueBox(length(COUNTIES), icon = "fa-map-marker", color = "primary")
+```
+
+### Crops Tracked {.value-box}
+```{r}
+valueBox(clean |> distinct(crop_label) |> nrow(), icon = "fa-leaf", color = "warning")
+```
+
+Row
+-------------------------------------
+
+### Value of Production by County & Crop — `r latest_year_county` (Census)
+```{r}
+overview_df <- clean_county |>
+  filter(year == latest_year_county, metric_label == "Value of Production") |>
+  group_by(county, crop_label) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(tip = paste0(county, "<br>", crop_label, "<br>$", round(value/1e6,1), "M"))
+
+county_order <- overview_df |>
+  group_by(county) |> summarise(tot = sum(value)) |>
+  arrange(tot) |> pull(county)
+
+plot_ly(overview_df,
+        x = ~value / 1e6,
+        y = ~factor(county, levels = county_order),
+        color = ~crop_label,
+        colors = CROP_COLS,
+        type = "bar", orientation = "h",
+        text = ~tip, hoverinfo = "text") |>
+  layout(barmode = "stack",
+         xaxis = list(title = "Value ($ Millions)", tickprefix = "$"),
+         yaxis = list(title = ""),
+         legend = list(title = list(text = "Crop")))
+```
+
+### Top Crops by Statewide Value — `r latest_year`
+```{r}
+top_crops <- clean_state |>
+  filter(year == latest_year, metric_label == "Value of Production") |>
+  group_by(crop_label) |>
+  summarise(total = sum(value, na.rm = TRUE), .groups = "drop") |>
+  arrange(total) |>
+  mutate(tip = paste0(crop_label, ": $", round(total/1e6,1), "M"))
+
+plot_ly(top_crops,
+        x = ~total / 1e6,
+        y = ~factor(crop_label, levels = top_crops$crop_label),
+        color = ~crop_label, colors = CROP_COLS,
+        type = "bar", orientation = "h",
+        text = ~tip, hoverinfo = "text",
+        showlegend = FALSE) |>
+  layout(xaxis = list(title = "Value ($ Millions)", tickprefix = "$"),
+         yaxis = list(title = ""))
+```
+
+Crop Trends
+=====================================
+
+Row
+-------------------------------------
+
+### Value of Production Over Time — All Counties
+```{r}
+trend_df <- clean_state |>
+  filter(metric_label == "Value of Production") |>
+  group_by(year, crop_label) |>
+  summarise(total = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(tip = paste0(crop_label, " (", year, "): $", round(total/1e6,1), "M"))
+
+plot_ly(trend_df, x = ~year, y = ~total/1e6, color = ~crop_label,
+        colors = CROP_COLS, type = "scatter", mode = "lines+markers",
+        text = ~tip, hoverinfo = "text") |>
+  layout(xaxis = list(title = "Year"),
+         yaxis = list(title = "Value ($ Millions)", tickprefix = "$"),
+         legend = list(title = list(text = "Crop")))
+```
+
+Row
+-------------------------------------
+
+### Acres Harvested Over Time
+```{r}
+acres_df <- clean |>
+  filter(metric_label == "Acres Harvested") |>
+  group_by(year, crop_label) |>
+  summarise(total = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(tip = paste0(crop_label, " (", year, "): ", round(total/1e3,1), "K acres"))
+
+plot_ly(acres_df, x = ~year, y = ~total/1e3, color = ~crop_label,
+        colors = CROP_COLS, type = "scatter", mode = "lines+markers",
+        text = ~tip, hoverinfo = "text") |>
+  layout(xaxis = list(title = "Year"),
+         yaxis = list(title = "Thousand Acres"),
+         legend = list(title = list(text = "Crop")))
+```
+
+Price & Yield
+=====================================
+
+Row
+-------------------------------------
+
+### Price Received Over Time
+```{r}
+price_df <- clean_state |>
+  filter(metric_label == "Price Received") |>
+  group_by(year, crop_label) |>
+  summarise(avg_price = mean(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(tip = paste0(crop_label, " (", year, "): $", round(avg_price, 2)))
+
+plot_ly(price_df, x = ~year, y = ~avg_price, color = ~crop_label,
+        colors = CROP_COLS, type = "scatter", mode = "lines+markers",
+        text = ~tip, hoverinfo = "text") |>
+  layout(xaxis = list(title = "Year"),
+         yaxis = list(title = "Avg Price Received", tickprefix = "$"),
+         legend = list(title = list(text = "Crop")))
+```
+
+### Value per Acre by Crop
+```{r}
+if (nrow(derived) == 0) {
+  plotly_empty() |> layout(title = list(text = "No value-per-acre data (requires both Acres Harvested and Value of Production)"))
+} else {
+  derived_plot <- derived |>
+    mutate(tip = paste0(crop_label, " — ", county,
+                        " (", year, "): $", round(value_per_acre)))
+
+  plot_ly(derived_plot, x = ~year, y = ~value_per_acre,
+          split = ~paste(crop_label, county),
+          color = ~crop_label, colors = CROP_COLS,
+          type = "scatter", mode = "lines",
+          opacity = 0.6,
+          text = ~tip, hoverinfo = "text") |>
+    layout(xaxis = list(title = "Year"),
+           yaxis = list(title = "Value per Acre ($)", tickprefix = "$"),
+           legend = list(title = list(text = "Crop")))
+}
+```
+
+County Comparison
+=====================================
+
+Row
+-------------------------------------
+
+### Value of Production by County — by Crop
+```{r}
+county_df <- clean_county |>
+  filter(metric_label == "Value of Production", county %in% COUNTIES) |>
+  group_by(year, county, crop_label) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(tip = paste0(county, " (", year, "): $", round(value/1e6,1), "M"))
+
+crops <- sort(unique(county_df$crop_label))
+
+plots <- lapply(seq_along(crops), function(i) {
+  cr  <- crops[i]
+  d   <- filter(county_df, crop_label == cr)
+  show_legend <- (i == 1)
+  plot_ly(d, x = ~year, y = ~value/1e6, color = ~county,
+          colors = COUNTY_COLS, type = "scatter", mode = "lines",
+          text = ~tip, hoverinfo = "text",
+          showlegend = show_legend, legendgroup = ~county) |>
+    layout(yaxis = list(tickprefix = "$", title = "$M"))
+})
+
+if (length(plots) == 0) {
+  plotly_empty() |> layout(title = list(text = "No Value of Production data available"))
+} else {
+  nr <- min(3, length(plots))
+  subplot(plots, nrows = nr, shareX = FALSE, shareY = FALSE,
+          titleX = FALSE, titleY = FALSE, margin = 0.07) |>
+    layout(annotations = subplot_titles(crops, nrows = nr, margin = 0.07))
+}
+```
+
+COVID & Climate Impact
+=====================================
+
+Row
+-------------------------------------
+
+### Year-over-Year Change in Value of Production
+```{r}
+yoy_df <- clean_state |>
+  filter(metric_label == "Value of Production") |>
+  group_by(year, crop_label) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop") |>
+  arrange(crop_label, year) |>
+  group_by(crop_label) |>
+  mutate(pct_change = (value - lag(value)) / lag(value)) |>
+  filter(!is.na(pct_change)) |>
+  ungroup() |>
+  mutate(
+    color_val = if_else(pct_change > 0, "#1a9641", "#d7191c"),
+    tip = paste0(crop_label, " (", year, "): ", round(pct_change*100,1), "%")
+  )
+
+crops_yoy <- sort(unique(yoy_df$crop_label))
+x_min <- min(yoy_df$year); x_max <- max(yoy_df$year)
+
+plots_yoy <- lapply(seq_along(crops_yoy), function(i) {
+  cr <- crops_yoy[i]
+  d  <- filter(yoy_df, crop_label == cr)
+  plot_ly(d, x = ~year, y = ~pct_change,
+          type = "bar", marker = list(color = d$color_val),
+          text = ~tip, hoverinfo = "text",
+          showlegend = FALSE) |>
+    layout(
+      shapes = list(list(
+        type = "rect", x0 = 2019.5, x1 = 2022.5,
+        y0 = min(d$pct_change, na.rm=TRUE),
+        y1 = max(d$pct_change, na.rm=TRUE),
+        fillcolor = "rgba(215,25,28,0.08)", line = list(width = 0)
+      )),
+      yaxis = list(tickformat = ".0%", title = "")
+    )
+})
+
+if (length(plots_yoy) == 0) {
+  plotly_empty() |> layout(title = list(text = "No Value of Production data available"))
+} else {
+  nr <- min(2, length(plots_yoy))
+  subplot(plots_yoy, nrows = nr, shareX = FALSE, shareY = FALSE,
+          titleX = FALSE, titleY = FALSE, margin = 0.08) |>
+    layout(annotations = subplot_titles(crops_yoy, nrows = nr, margin = 0.08))
+}
+```
+
+Row
+-------------------------------------
+
+### Yield Index (2015 = 100)
+```{r}
+yield_plot <- yield_idx |>
+  filter(!is.na(yield_index), county %in% COUNTIES) |>
+  mutate(tip = paste0(county, " (", year, "): ", round(yield_index, 1)))
+
+crops_yi <- sort(unique(yield_plot$crop_label))
+
+plots_yi <- lapply(seq_along(crops_yi), function(i) {
+  cr <- crops_yi[i]
+  d  <- filter(yield_plot, crop_label == cr)
+  show_legend <- (i == 1)
+  plot_ly(d, x = ~year, y = ~yield_index, color = ~county,
+          colors = COUNTY_COLS, type = "scatter", mode = "lines",
+          text = ~tip, hoverinfo = "text",
+          showlegend = show_legend, legendgroup = ~county) |>
+    layout(
+      shapes = list(list(
+        type = "line", x0 = min(d$year), x1 = max(d$year),
+        y0 = 100, y1 = 100,
+        line = list(dash = "dash", color = "gray", width = 1)
+      )),
+      yaxis = list(title = "Index (2015=100)")
+    )
+})
+
+if (length(plots_yi) == 0) {
+  plotly_empty() |> layout(title = list(text = "No yield index data available"))
+} else {
+  nr <- min(3, length(plots_yi))
+  subplot(plots_yi, nrows = nr, shareX = FALSE, shareY = FALSE,
+          titleX = FALSE, titleY = FALSE, margin = 0.07) |>
+    layout(annotations = subplot_titles(crops_yi, nrows = nr, margin = 0.07))
+}
+```
+
+Key Findings
+=====================================
+
+Row
+-------------------------------------
+
+### Analysis
+
+**Central Valley Crop Economics: 2010–`r latest_year`**
+
+The seven counties in this analysis — Fresno, Tulare, Kings, Merced, San Joaquin,
+Stanislaus, and Madera — form the agricultural backbone of California and one of
+the most productive farming regions on Earth. Together they produce the majority
+of the state's almonds, walnuts, grapes, processing tomatoes, and dairy output.
+This analysis examines how crop economics have shifted over fifteen years, with
+particular attention to structural disruptions from drought, COVID-19, and
+commodity price cycles.
+
+---
+
+**1. Almonds dominate value per acre — but at a cost.**
+Almond acreage expanded dramatically through the 2010s as growers chased high
+commodity prices. By the mid-2010s, however, global oversupply began compressing
+prices. The value-per-acre trends reveal the boom-and-contraction cycle clearly:
+rapid expansion followed by price erosion that squeezed margins even as acreage
+held steady. This is a textbook commodity cycle — overinvestment chasing a price
+signal that no longer holds by the time new orchards mature.
+
+**2. Drought years (2012–2016, 2020–2022) appear in the yield index.**
+California's multi-year droughts are legible in the yield data for water-intensive
+crops. Counties on the west side of the San Joaquin Valley — Kings and Fresno
+in particular — show steeper yield index declines during drought windows, reflecting
+their greater dependence on groundwater and their distance from Sierra Nevada
+snowpack runoff. The Sustainable Groundwater Management Act (SGMA, 2014) is
+beginning to constrain pumping, which will reshape where and what can be grown
+in the coming decade.
+
+**3. COVID-19 disrupted price received more than production volume.**
+The 2020–2021 window shows in the YoY price charts more than in the acreage or
+yield data. Supply chains for labor-intensive crops — grapes and tomatoes especially
+— faced harvest disruptions from farmworker illness and H-2A visa processing delays.
+Processing tomato growers absorbed some shock through contract pricing, while fresh
+grape markets faced steeper volatility. The overall value of production recovered
+faster than prices, suggesting volume held up while margins compressed.
+
+**4. Merced County is a dairy county first.**
+Milk production dominates Merced's agricultural value in most years, reflecting
+the county's role in California's Central Valley dairy belt. Row crops and grapes
+play a secondary role. This matters for county-level economic resilience: dairy
+is subject to federal milk marketing orders and national commodity price swings
+in ways that tree crops are not, making Merced's ag economy more exposed to
+federal policy than counties more diversified into nuts and grapes.
+
+**5. The coming decade will be shaped by water, not weather.**
+SGMA implementation, declining snowpack, and competition between agricultural and
+municipal water users will force land conversion across the Valley. Crops requiring
+deep, sustained irrigation — cotton, some row crops — will retreat. Tree crops
+already in the ground will be managed defensively. The acreage trends in this
+dataset already show early signs of this transition, and the next five years of
+NASS data will make the structural shift visible.

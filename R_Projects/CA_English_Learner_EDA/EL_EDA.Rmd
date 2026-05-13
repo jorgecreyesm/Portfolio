@@ -1,0 +1,280 @@
+---
+title: "California English Learner Data — Exploratory Analysis"
+author: "Jorge Reyes-Ornelas"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6)
+library(tidyverse)
+library(scales)
+library(knitr)
+```
+
+# Data Sources
+
+Three school-level files from the California Department of Education (CDE):
+
+| File | Description | Grain |
+|------|-------------|-------|
+| `fileselsch_2026.txt` | English Learner (EL) counts — 2025–26 | School × Language × Grade |
+| `filesfepsch_2026.txt` | Fluent English Proficient (FEP) counts — 2025–26 | School × Language × Grade |
+| `filesreclass.txt` | Reclassified Fluent English counts — last available (2019–20) | School (aggregate) |
+
+---
+
+# 1. Load Data
+
+```{r load}
+el  <- read_tsv("data/fileselsch_2026.txt",  show_col_types = FALSE)
+fep <- read_tsv("data/filesfepsch_2026.txt", show_col_types = FALSE)
+rc  <- read_tsv("data/filesreclass.txt",     show_col_types = FALSE)
+```
+
+---
+
+# 2. Structure & Dimensions
+
+```{r structure}
+cat("=== EL ===\n");  glimpse(el)
+cat("\n=== FEP ===\n"); glimpse(fep)
+cat("\n=== RECLASS ===\n"); glimpse(rc)
+```
+
+```{r dims}
+tibble(
+  File    = c("EL", "FEP", "Reclass"),
+  Rows    = c(nrow(el), nrow(fep), nrow(rc)),
+  Columns = c(ncol(el), ncol(fep), ncol(rc))
+) |> kable(caption = "Dataset dimensions")
+```
+
+---
+
+# 3. Missing Values
+
+```{r missing}
+missing_summary <- function(df, name) {
+  df |>
+    summarise(across(everything(), ~ sum(is.na(.)))) |>
+    pivot_longer(everything(), names_to = "column", values_to = "na_count") |>
+    filter(na_count > 0) |>
+    mutate(file = name)
+}
+
+bind_rows(
+  missing_summary(el,  "EL"),
+  missing_summary(fep, "FEP"),
+  missing_summary(rc,  "Reclass")
+) |>
+  select(file, column, na_count) |>
+  kable(caption = "Columns with missing values")
+```
+
+---
+
+# 4. Top Languages — EL
+
+```{r top-langs-el}
+el |>
+  group_by(LANGUAGE) |>
+  summarise(total = sum(TOTAL_EL, na.rm = TRUE)) |>
+  arrange(desc(total)) |>
+  slice_head(n = 20) |>
+  ggplot(aes(x = reorder(LANGUAGE, total), y = total)) +
+  geom_col(fill = "#2c7bb6") +
+  coord_flip() +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Top 20 Languages — English Learners (Statewide)",
+       x = NULL, y = "Total EL Students") +
+  theme_minimal()
+```
+
+```{r top-langs-el-table}
+el |>
+  group_by(LC, LANGUAGE) |>
+  summarise(total_el = sum(TOTAL_EL, na.rm = TRUE), .groups = "drop") |>
+  arrange(desc(total_el)) |>
+  slice_head(n = 20) |>
+  mutate(pct = percent(total_el / sum(el$TOTAL_EL, na.rm = TRUE), accuracy = 0.1)) |>
+  kable(caption = "Top 20 EL Languages with statewide share")
+```
+
+---
+
+# 5. Top Languages — FEP
+
+```{r top-langs-fep}
+fep |>
+  group_by(LANGUAGE) |>
+  summarise(total = sum(TOTAL, na.rm = TRUE)) |>
+  arrange(desc(total)) |>
+  slice_head(n = 20) |>
+  ggplot(aes(x = reorder(LANGUAGE, total), y = total)) +
+  geom_col(fill = "#1a9641") +
+  coord_flip() +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Top 20 Languages — Fluent English Proficient (Statewide)",
+       x = NULL, y = "Total FEP Students") +
+  theme_minimal()
+```
+
+---
+
+# 6. EL Grade Distribution (Statewide)
+
+```{r grade-dist-el}
+grade_cols <- c("GR_TK","GR_KN","GR_1","GR_2","GR_3","GR_4","GR_5",
+                "GR_6","GR_7","GR_8","GR_9","GR_10","GR_11","GR_12","UNGR")
+
+el |>
+  summarise(across(all_of(grade_cols), ~ sum(., na.rm = TRUE))) |>
+  pivot_longer(everything(), names_to = "grade", values_to = "count") |>
+  mutate(grade = factor(grade, levels = grade_cols)) |>
+  ggplot(aes(x = grade, y = count)) +
+  geom_col(fill = "#2c7bb6") +
+  scale_y_continuous(labels = comma) +
+  labs(title = "EL Students by Grade Level (Statewide)",
+       x = "Grade", y = "Students") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+---
+
+# 7. FEP Grade Distribution (Statewide)
+
+```{r grade-dist-fep}
+fep |>
+  summarise(across(all_of(grade_cols), ~ sum(., na.rm = TRUE))) |>
+  pivot_longer(everything(), names_to = "grade", values_to = "count") |>
+  mutate(grade = factor(grade, levels = grade_cols)) |>
+  ggplot(aes(x = grade, y = count)) +
+  geom_col(fill = "#1a9641") +
+  scale_y_continuous(labels = comma) +
+  labs(title = "FEP Students by Grade Level (Statewide)",
+       x = "Grade", y = "Students") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+---
+
+# 8. County Summaries
+
+```{r county-el}
+el |>
+  group_by(COUNTY) |>
+  summarise(total_el = sum(TOTAL_EL, na.rm = TRUE)) |>
+  arrange(desc(total_el)) |>
+  slice_head(n = 15) |>
+  ggplot(aes(x = reorder(COUNTY, total_el), y = total_el)) +
+  geom_col(fill = "#d7191c") +
+  coord_flip() +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Top 15 Counties by EL Enrollment", x = NULL, y = "Total EL Students") +
+  theme_minimal()
+```
+
+---
+
+# 9. Reclassification Overview
+
+```{r reclass-overview}
+rc |>
+  summarise(
+    total_el    = sum(EL,     na.rm = TRUE),
+    total_fep   = sum(FEP,    na.rm = TRUE),
+    total_reclass = sum(Reclass, na.rm = TRUE)
+  ) |>
+  pivot_longer(everything(), names_to = "category", values_to = "count") |>
+  mutate(
+    category = recode(category,
+      total_el = "English Learner",
+      total_fep = "Fluent English Proficient",
+      total_reclass = "Reclassified"
+    )
+  ) |>
+  kable(caption = "Statewide EL / FEP / Reclassification counts (from Reclass file)")
+```
+
+```{r reclass-rate}
+rc |>
+  filter(EL > 0) |>
+  mutate(reclass_rate = Reclass / EL) |>
+  filter(is.finite(reclass_rate)) |>
+  ggplot(aes(x = reclass_rate)) +
+  geom_histogram(bins = 60, fill = "#fdae61", color = "white") +
+  scale_x_continuous(labels = percent_format()) +
+  labs(title = "Distribution of Reclassification Rates by School",
+       subtitle = "Reclass / EL enrollment, schools with EL > 0",
+       x = "Reclassification Rate", y = "Schools") +
+  theme_minimal()
+```
+
+```{r reclass-county}
+rc |>
+  group_by(County) |>
+  summarise(
+    el      = sum(EL,      na.rm = TRUE),
+    reclass = sum(Reclass, na.rm = TRUE),
+    rate    = reclass / el
+  ) |>
+  filter(el > 0) |>
+  arrange(desc(el)) |>
+  slice_head(n = 15) |>
+  ggplot(aes(x = reorder(County, rate), y = rate)) +
+  geom_col(fill = "#fdae61") +
+  coord_flip() +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  labs(title = "Reclassification Rate — Top 15 Counties by EL Enrollment",
+       x = NULL, y = "Reclassification Rate") +
+  theme_minimal()
+```
+
+---
+
+# 10. Join Preview (for next project)
+
+The three files share the `CDS` school code. Reclass uses title-case column names; EL and FEP use uppercase. A full join will need:
+
+- Rename `County / District / School` in Reclass to `COUNTY / DISTRICT / SCHOOL`
+- Pivot EL and FEP from wide (grade columns) to long before joining, or join at the school-aggregate level
+- `TOTAL_EL` (EL file) vs `TOTAL` (FEP file) — standardize before binding
+
+```{r join-preview}
+# School-level aggregate from EL file
+el_agg <- el |>
+  group_by(CDS, COUNTY, DISTRICT, SCHOOL) |>
+  summarise(total_el = sum(TOTAL_EL, na.rm = TRUE), .groups = "drop")
+
+# School-level aggregate from FEP file
+fep_agg <- fep |>
+  group_by(CDS, COUNTY, DISTRICT, SCHOOL) |>
+  summarise(total_fep = sum(TOTAL, na.rm = TRUE), .groups = "drop")
+
+# Reclass — standardize column names
+rc_clean <- rc |>
+  rename(COUNTY = County, DISTRICT = District, SCHOOL = School)
+
+# Preview join
+el_agg |>
+  left_join(fep_agg, by = c("CDS","COUNTY","DISTRICT","SCHOOL")) |>
+  left_join(rc_clean, by = c("CDS","COUNTY","DISTRICT","SCHOOL")) |>
+  slice_head(n = 10) |>
+  kable(caption = "Preview: school-level join of EL + FEP + Reclass")
+```
+
+---
+
+# Session Info
+
+```{r session}
+sessionInfo()
+```
