@@ -71,11 +71,11 @@ Works on LinkedIn, Indeed, CalCareers, Glassdoor, Workday, Handshake, and most j
 
 ## Excel Spreadsheet Format
 
-Logs to `/Users/jorgereyeso/Documents/Applications spreadsheet.xlsx`
+Logs to your configured Excel spreadsheet path (set in `server.py`)
 
 | Job Applied | Date | Pay | Resume | Follow Up |
 |---|---|---|---|---|
-| Data Analyst | 2026-05-15 | 60k – 80k | GOVResume 507 JorgeRO.pdf | Apply by Friday |
+| Data Analyst | 2026-05-15 | 60k – 80k | Resume_v3.pdf | Apply by Friday |
 
 ---
 
