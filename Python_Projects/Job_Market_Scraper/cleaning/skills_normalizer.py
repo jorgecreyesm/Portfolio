@@ -68,12 +68,26 @@ SKILL_MAP: dict[str, tuple[str, str]] = {
     "google slides":  ("Google Slides","Communication"),
     "presentation":   ("Presentation","Communication"),
     # Other
-    "spark":          ("Spark",      "Other"),
-    "etl":            ("ETL",        "Other"),
+    "spark":          ("Spark",        "Other"),
+    "etl":            ("ETL",          "Other"),
     "data modeling":  ("Data Modeling","Other"),
     "data warehouse": ("Data Warehouse","Other"),
-    "jira":           ("Jira",       "Other"),
-    "confluence":     ("Confluence", "Other"),
+    "jira":           ("Jira",         "Other"),
+    "confluence":     ("Confluence",   "Other"),
+    "git":            ("Git",          "Other"),
+    "github":         ("Git",          "Other"),
+    "api":            ("API",          "Other"),
+    # Python — additional libraries
+    "streamlit":      ("Streamlit",    "Python"),
+    "plotly":         ("Plotly",       "Python"),
+    "machine learning": ("Machine Learning", "Python"),
+    "random forest":  ("Random Forest","Python"),
+    # R — additional aliases
+    "r studio":       ("R",            "R"),
+    # Statistics — additional
+    "time series":    ("Time Series",  "Statistics"),
+    "forecasting":    ("Forecasting",  "Statistics"),
+    "eda":            ("EDA",          "Statistics"),
 }
 
 

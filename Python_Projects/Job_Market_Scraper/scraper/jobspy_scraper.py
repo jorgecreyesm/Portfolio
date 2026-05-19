@@ -4,7 +4,7 @@ from jobspy import scrape_jobs
 
 def fetch_jobs(query: str, location: str = "", results: int = 50) -> list[dict]:
     df = scrape_jobs(
-        site_name=["indeed", "linkedin", "google"],
+        site_name=["indeed", "google"],
         search_term=query,
         location=location or "United States",
         results_wanted=results,

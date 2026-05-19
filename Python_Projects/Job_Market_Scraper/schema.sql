@@ -13,8 +13,22 @@ CREATE TABLE IF NOT EXISTS job_postings (
     date_posted     DATE,
     scraped_at      TIMESTAMP DEFAULT NOW(),
     is_staffing_agency    BOOLEAN DEFAULT FALSE,
-    agency_flag_reason    VARCHAR(255)
+    agency_flag_reason    VARCHAR(255),
+    filter_score          INT,
+    filter_tier           VARCHAR(10)          -- 'HIGH' | 'MEDIUM' | 'LOW'
 );
+
+-- Idempotent migration: add filter columns to existing installs
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'job_postings' AND column_name = 'filter_score'
+    ) THEN
+        ALTER TABLE job_postings ADD COLUMN filter_score INT;
+        ALTER TABLE job_postings ADD COLUMN filter_tier  VARCHAR(10);
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS job_skills (
     id               SERIAL PRIMARY KEY,

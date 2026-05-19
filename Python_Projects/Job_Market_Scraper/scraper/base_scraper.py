@@ -29,7 +29,6 @@ class BaseScraper:
     def get(self, url, params=None, retries=3):
         for attempt in range(retries):
             try:
-                self._rotate_agent()
                 response = self.session.get(url, params=params, timeout=15)
                 response.raise_for_status()
                 self._sleep()
@@ -37,6 +36,7 @@ class BaseScraper:
             except requests.RequestException as e:
                 wait = 2 ** attempt * random.uniform(1, 2)
                 print(f"  [retry {attempt + 1}/{retries}] {e} — waiting {wait:.1f}s")
+                self._rotate_agent()   # new UA per retry, not per request
                 time.sleep(wait)
         print(f"  [failed] could not fetch {url}")
         return None

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Job Application Logger",
+  "version": "1.0",
+  "description": "One-click logging of job applications to your Excel tracker",
+  "permissions": ["activeTab", "tabs"],
+  "host_permissions": ["http://localhost:5050/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Log Job Application",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
+}

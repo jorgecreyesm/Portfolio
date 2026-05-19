@@ -21,10 +21,12 @@ def _build_report(df_jobs: pd.DataFrame, df_skills: pd.DataFrame) -> str:
     buf.write("=" * 60 + "\n")
     buf.write("  JOB MARKET ANALYSIS — Entry-Level DA / BA Postings\n")
     buf.write("=" * 60 + "\n")
+    pct = lambda n: f"{n / total * 100:.1f}" if total else "0.0"
+
     buf.write(f"\nTotal postings scraped : {total}\n")
-    buf.write(f"Direct employer        : {direct_count} ({direct_count/total*100:.1f}%)\n")
-    buf.write(f"Staffing agency        : {agency_count} ({agency_count/total*100:.1f}%)\n")
-    buf.write(f"Remote / hybrid        : {remote_count} ({remote_count/total*100:.1f}%)\n")
+    buf.write(f"Direct employer        : {direct_count} ({pct(direct_count)}%)\n")
+    buf.write(f"Staffing agency        : {agency_count} ({pct(agency_count)}%)\n")
+    buf.write(f"Remote / hybrid        : {remote_count} ({pct(remote_count)}%)\n")
 
     if not df_skills.empty:
         buf.write("\n--- Top 15 Required Skills ---\n")

@@ -17,6 +17,10 @@ WEIGHTS = {
     "title":    0.15,
 }
 
+AGENCY_PENALTY  = 0.85                              # multiplier for staffing agency postings
+TIER_BONUS      = {"HIGH": 0.05, "MEDIUM": 0.02}   # additive bonus from pre-filter tier
+SKILL_BREADTH_N = 5                                 # skill count treated as "full breadth"
+
 
 def load_profile() -> dict:
     with open(PROFILE_PATH) as f:
@@ -24,10 +28,18 @@ def load_profile() -> dict:
 
 
 def _skill_score(job_skills: set[str], user_skills: set[str]) -> float:
+    """
+    Hybrid of coverage (% of job requirements met) and breadth (absolute match count).
+    Prevents jobs with many listed skills from being unfairly penalized.
+    """
     if not job_skills:
         return 0.0
     matched = job_skills & user_skills
-    return len(matched) / len(job_skills)
+    if not matched:
+        return 0.0
+    coverage = len(matched) / len(job_skills)
+    breadth  = min(len(matched) / SKILL_BREADTH_N, 1.0)
+    return 0.6 * coverage + 0.4 * breadth
 
 
 def _remote_score(is_remote: bool, location: str, profile: dict) -> float:
@@ -44,7 +56,7 @@ def _remote_score(is_remote: bool, location: str, profile: dict) -> float:
 
 def _salary_score(salary_min, salary_max, salary_type: str, profile: dict) -> float:
     if salary_min is None and salary_max is None:
-        return 0.5  # no data — neutral
+        return 0.5
 
     try:
         salary_min = float(salary_min) if salary_min is not None else None
@@ -59,21 +71,27 @@ def _salary_score(salary_min, salary_max, salary_type: str, profile: dict) -> fl
     if salary_min is None and salary_max is None:
         return 0.5
 
-    val = salary_max or salary_min
+    # Use midpoint when both present; avoids over-rewarding jobs with wide ranges
+    if salary_min is not None and salary_max is not None:
+        val = (salary_min + salary_max) / 2
+    else:
+        val = salary_max or salary_min
+
     if salary_type == "hourly":
-        threshold = profile["salary_min_hourly"]
         annual_equiv = val * 2080
-        threshold_annual = threshold * 2080
+        threshold    = profile["salary_min_hourly"] * 2080
     else:
         annual_equiv = val
-        threshold_annual = profile["salary_min_annual"]
+        threshold    = profile["salary_min_annual"]
 
-    if annual_equiv >= threshold_annual * 1.2:
+    if annual_equiv >= threshold * 1.3:
         return 1.0
-    if annual_equiv >= threshold_annual:
-        return 0.8
-    if annual_equiv >= threshold_annual * 0.85:
-        return 0.5
+    if annual_equiv >= threshold * 1.1:
+        return 0.85
+    if annual_equiv >= threshold:
+        return 0.7
+    if annual_equiv >= threshold * 0.85:
+        return 0.4
     return 0.1
 
 
@@ -82,10 +100,12 @@ def _title_score(job_title: str, profile: dict) -> float:
     for kw in profile["preferred_titles"]:
         if kw.lower() in title:
             return 1.0
+    if "analyst" in title:   # catches reporting/financial/commercial/etc analyst
+        return 0.6
     return 0.2
 
 
-def run_matcher(save: bool = False):
+def run_matcher(save: bool = False, exclude_agency: bool = False):
     profile  = load_profile()
     postings = fetch_all_postings()
     skills   = fetch_all_skills()
@@ -100,6 +120,11 @@ def run_matcher(save: bool = False):
     df_skills = pd.DataFrame(skills) if skills else pd.DataFrame(
         columns=["job_id", "skill_normalized"]
     )
+
+    if exclude_agency:
+        before = len(df_jobs)
+        df_jobs = df_jobs[~df_jobs["is_staffing_agency"].fillna(False)].copy()
+        print(f"  Excluded {before - len(df_jobs)} agency postings.")
 
     skills_by_job = (
         df_skills.groupby("job_id")["skill_normalized"]
@@ -119,16 +144,22 @@ def run_matcher(save: bool = False):
         )
         s_title  = _title_score(job["job_title"], profile)
 
-        total = (
+        weighted = (
             WEIGHTS["skill"]  * s_skill  +
             WEIGHTS["remote"] * s_remote +
             WEIGHTS["salary"] * s_salary +
             WEIGHTS["title"]  * s_title
         )
 
-        matched_skills = sorted({
-            s for s in job_skills if s in user_skills
-        })
+        if job["is_staffing_agency"]:
+            weighted *= AGENCY_PENALTY
+
+        raw_tier   = job["filter_tier"] if isinstance(job["filter_tier"], str) else ""
+        tier_bonus = TIER_BONUS.get(raw_tier, 0.0)
+        total      = min(1.0, weighted + tier_bonus)
+
+        matched_skills = sorted(job_skills & user_skills)
+        missing_skills = sorted(job_skills - user_skills)
 
         rows.append({
             "match_%":        round(total * 100, 1),
@@ -137,10 +168,12 @@ def run_matcher(save: bool = False):
             "location":       job["location"],
             "remote":         "Yes" if job["is_remote"] else "No",
             "agency":         "Yes" if job["is_staffing_agency"] else "No",
+            "filter_tier":    raw_tier or "—",
             "salary_min":     f"${job['salary_min']:,.0f}" if job["salary_min"] else "—",
             "salary_max":     f"${job['salary_max']:,.0f}" if job["salary_max"] else "—",
             "salary_type":    job["salary_type"] or "—",
             "skills_matched": ", ".join(matched_skills) if matched_skills else "none",
+            "skills_missing": ", ".join(missing_skills[:6]) if missing_skills else "—",
             "source_url":     job["source_url"],
             "skill_score":    round(s_skill  * 100, 1),
             "remote_score":   round(s_remote * 100, 1),
@@ -159,8 +192,8 @@ def run_matcher(save: bool = False):
 
     display_cols = [
         "match_%", "job_title", "company", "location",
-        "remote", "agency", "salary_min", "salary_max",
-        "salary_type", "skills_matched"
+        "remote", "agency", "filter_tier",
+        "salary_min", "salary_max", "salary_type", "skills_matched",
     ]
 
     print("\n" + "=" * 60)
@@ -170,8 +203,11 @@ def run_matcher(save: bool = False):
                    showindex=True))
 
     print("\n--- Score Breakdown (top matches) ---")
-    score_cols = ["match_%", "job_title", "skill_score", "remote_score",
-                  "salary_score", "title_score"]
+    score_cols = [
+        "match_%", "job_title",
+        "skill_score", "remote_score", "salary_score", "title_score",
+        "skills_missing",
+    ]
     print(tabulate(top_df[score_cols], headers="keys", tablefmt="simple",
                    showindex=True))
 
@@ -183,7 +219,6 @@ def run_matcher(save: bool = False):
     print("=" * 60 + "\n")
 
     if save:
-        from pathlib import Path
         from datetime import date
         out = Path("reports") / f"matches_{date.today().isoformat()}.csv"
         df_results.to_csv(out, index=False)
