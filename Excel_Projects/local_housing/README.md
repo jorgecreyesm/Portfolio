@@ -1,45 +1,31 @@
 # Merced County Housing Market Dashboard
 
-An Excel dashboard analyzing residential housing trends across 5 cities in Merced County, California — combining Zillow home value data with Redfin transaction metrics.
+An Excel dashboard analyzing residential housing trends across 5 cities in Merced County, California — built from Redfin transaction data.
 
 ---
 
 ## Overview
 
-This project pulls from two data sources, cleans and reshapes them using Python, and loads the results into an Excel workbook with pivot tables and a one-page executive dashboard.
+This project pulls Redfin housing market data, cleans and reshapes it using Python, and loads the results into an Excel workbook with pivot tables and a one-page executive dashboard.
 
 **Cities covered:** Merced, Los Banos, Atwater, Livingston, Hilmar  
-**Zillow coverage:** January 2021 – March 2026  
-**Redfin coverage:** January 2023 – April 2026  
+**Coverage:** January 2023 – April 2026  
 
 ---
 
-## Data Sources
+## Data Source
 
 | Source | Dataset | What It Covers |
 |---|---|---|
-| Zillow ZHVI | `city_homevalue_zillow.csv` | Monthly median home values, point-in-time |
-| Redfin | `redfin_housing_market_monthly_all_cities_key_metrics_2023_Jan_to_2026_Apr.csv` | Rolling 3-month transaction metrics |
-
-> **Note:** Zillow and Redfin use different time structures (monthly snapshots vs. rolling 3-month windows) and are kept as separate sheets rather than force-joined.
+| Redfin | `redfin_housing_market_monthly_all_cities_key_metrics_2023_Jan_to_2026_Apr.csv` | Rolling 3-month transaction metrics by city |
 
 ---
 
-## Cleaned Datasets
+## Cleaned Dataset
 
-Both sources were filtered, reshaped, and exported to CSV using Python (`pandas`) before import into Excel.
+The raw Redfin file was filtered to the 5 Merced County cities, reshaped to long format, and exported to CSV using Python (`pandas`) before import into Excel.
 
-**`merced_clean.csv`** — Zillow ZHVI, long format
-
-| Column | Description |
-|---|---|
-| `Date`, `Year`, `Month`, `Quarter` | Time dimensions |
-| `City`, `State`, `Metro`, `CountyName` | Geography |
-| `Home_Value` | Zillow median home value |
-| `MoM_Change_Pct` | Month-over-month % change |
-| `YoY_Change_Pct` | Year-over-year % change (12-month lag) |
-
-**`redfin_active_clean.csv`** — Redfin rolling 3-month metrics, long format
+**`redfin_active_clean.csv`** — 190 rows, long format
 
 | Column | Description |
 |---|---|
@@ -65,15 +51,15 @@ Both sources were filtered, reshaped, and exported to CSV using Python (`pandas`
 
 ## Key Findings
 
-- All five cities peaked in **mid-2022** then corrected through 2023 as rates rose
-- **Los Banos** saw the largest decline from peak (-6.44%) reflecting its Bay Area commuter exposure
-- **Atwater** showed the fastest stabilization, recovering to within 0.29% of its peak by early 2026
-- **Hilmar and Livingston** peaked later (early 2025) and are driven more by local agricultural employment than Bay Area spillover
-- As of early 2026, most cities are stabilizing with modest upward momentum
+- All five cities were in a correction phase entering 2023 following the 2022 rate hikes
+- **Los Banos** had the highest median sale prices and the steepest volume declines, reflecting Bay Area commuter demand sensitivity
+- **Atwater** showed the fastest stabilization across the period
+- **Hilmar and Livingston** are driven more by local agricultural employment than Bay Area spillover, resulting in different inventory patterns
+- As of early 2026, market activity across all five cities is trending toward stabilization
 
 ---
 
 ## Requirements
 
 - Microsoft Excel (2019+ or Microsoft 365)
-- Python 3.x + `pandas` for data prep (optional — cleaned CSVs are included)
+- Python 3.x + `pandas` for data prep (optional — cleaned CSV is included)
