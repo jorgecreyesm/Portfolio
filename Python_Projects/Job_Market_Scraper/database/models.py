@@ -56,7 +56,7 @@ def fetch_all_postings() -> list[dict]:
             SELECT id, job_title, company_name, location, is_remote,
                    salary_min, salary_max, salary_type,
                    raw_description, is_staffing_agency, agency_flag_reason,
-                   source_url, source, filter_score, filter_tier
+                   source_url, source, filter_score, filter_tier, date_posted
             FROM job_postings
             ORDER BY scraped_at DESC;
         """)

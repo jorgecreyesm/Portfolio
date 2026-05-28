@@ -95,6 +95,16 @@ def _salary_score(salary_min, salary_max, salary_type: str, profile: dict) -> fl
     return 0.1
 
 
+def _verdict(s_skill: float, s_remote: float, s_title: float, has_skills: bool) -> str:
+    if not has_skills:
+        return "UNVERIFIED"
+    if s_skill >= 0.7 and s_title >= 0.6 and s_remote >= 0.7:
+        return "STRONG"
+    if s_skill >= 0.4 and (s_remote >= 0.7 or s_title >= 0.6):
+        return "GOOD"
+    return "WEAK"
+
+
 def _title_score(job_title: str, profile: dict) -> float:
     title = job_title.lower()
     for kw in profile["preferred_titles"]:
@@ -161,24 +171,40 @@ def run_matcher(save: bool = False, exclude_agency: bool = False):
         matched_skills = sorted(job_skills & user_skills)
         missing_skills = sorted(job_skills - user_skills)
 
+        coverage = f"{len(matched_skills)}/{len(job_skills)}" if job_skills else "0/0"
+        verdict  = _verdict(s_skill, s_remote, s_title, bool(job_skills))
+
+        flags = []
+        if not job_skills:
+            flags.append("no skills in listing")
+        if s_title == 0.2:
+            flags.append("title mismatch")
+        if job["salary_min"] is None and job["salary_max"] is None:
+            flags.append("no salary listed")
+        if job["is_staffing_agency"]:
+            flags.append("staffing agency")
+
         rows.append({
-            "match_%":        round(total * 100, 1),
-            "job_title":      job["job_title"],
-            "company":        job["company_name"],
-            "location":       job["location"],
-            "remote":         "Yes" if job["is_remote"] else "No",
-            "agency":         "Yes" if job["is_staffing_agency"] else "No",
-            "filter_tier":    raw_tier or "—",
-            "salary_min":     f"${job['salary_min']:,.0f}" if job["salary_min"] else "—",
-            "salary_max":     f"${job['salary_max']:,.0f}" if job["salary_max"] else "—",
-            "salary_type":    job["salary_type"] or "—",
-            "skills_matched": ", ".join(matched_skills) if matched_skills else "none",
-            "skills_missing": ", ".join(missing_skills[:6]) if missing_skills else "—",
-            "source_url":     job["source_url"],
-            "skill_score":    round(s_skill  * 100, 1),
-            "remote_score":   round(s_remote * 100, 1),
-            "salary_score":   round(s_salary * 100, 1),
-            "title_score":    round(s_title  * 100, 1),
+            "match_%":         round(total * 100, 1),
+            "verdict":         verdict,
+            "job_title":       job["job_title"],
+            "company":         job["company_name"],
+            "location":        job["location"],
+            "remote":          "Yes" if job["is_remote"] else "No",
+            "agency":          "Yes" if job["is_staffing_agency"] else "No",
+            "filter_tier":     raw_tier or "—",
+            "salary_min":      f"${job['salary_min']:,.0f}" if job["salary_min"] else "—",
+            "salary_max":      f"${job['salary_max']:,.0f}" if job["salary_max"] else "—",
+            "salary_type":     job["salary_type"] or "—",
+            "skills_coverage": coverage,
+            "skills_matched":  ", ".join(matched_skills) if matched_skills else "none",
+            "skills_missing":  ", ".join(missing_skills[:10]) if missing_skills else "—",
+            "flags":           " | ".join(flags) if flags else "—",
+            "source_url":      job["source_url"],
+            "skill_score":     round(s_skill  * 100, 1),
+            "remote_score":    round(s_remote * 100, 1),
+            "salary_score":    round(s_salary * 100, 1),
+            "title_score":     round(s_title  * 100, 1),
         })
 
     df_results = (
@@ -191,9 +217,10 @@ def run_matcher(save: bool = False, exclude_agency: bool = False):
     top_df = df_results.head(top_n)
 
     display_cols = [
-        "match_%", "job_title", "company", "location",
-        "remote", "agency", "filter_tier",
-        "salary_min", "salary_max", "salary_type", "skills_matched",
+        "match_%", "verdict", "job_title", "company", "location",
+        "remote", "filter_tier",
+        "salary_min", "salary_max", "salary_type",
+        "skills_coverage", "skills_matched",
     ]
 
     print("\n" + "=" * 60)
@@ -204,9 +231,9 @@ def run_matcher(save: bool = False, exclude_agency: bool = False):
 
     print("\n--- Score Breakdown (top matches) ---")
     score_cols = [
-        "match_%", "job_title",
+        "match_%", "verdict", "job_title",
         "skill_score", "remote_score", "salary_score", "title_score",
-        "skills_missing",
+        "skills_coverage", "skills_missing", "flags",
     ]
     print(tabulate(top_df[score_cols], headers="keys", tablefmt="simple",
                    showindex=True))
@@ -215,6 +242,18 @@ def run_matcher(save: bool = False, exclude_agency: bool = False):
     for i, row in top_df.iterrows():
         print(f"  [{i}] {row['job_title']} @ {row['company']}")
         print(f"      {row['source_url']}")
+
+    suspicious = top_df[top_df["verdict"].isin(["WEAK", "UNVERIFIED"])]
+    if not suspicious.empty:
+        print("\n--- Match Quality Audit ---")
+        print("  These top matches scored high but have low skill alignment:\n")
+        for _, row in suspicious.iterrows():
+            print(f"  {row['job_title']} @ {row['company']}  ({row['match_%']}%  {row['verdict']})")
+            print(f"    Skills : {row['skills_coverage']} matched  |  missing: {row['skills_missing']}")
+            print(f"    Flags  : {row['flags']}")
+            print(f"    Scores : skill={row['skill_score']}  remote={row['remote_score']}  "
+                  f"salary={row['salary_score']}  title={row['title_score']}")
+            print()
 
     print("=" * 60 + "\n")
 

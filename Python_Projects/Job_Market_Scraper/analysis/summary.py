@@ -89,6 +89,60 @@ def _build_report(df_jobs: pd.DataFrame, df_skills: pd.DataFrame) -> str:
     loc.columns = ["location", "count"]
     buf.write(tabulate(loc, headers="keys", tablefmt="simple", showindex=False) + "\n")
 
+    buf.write("\n--- Filter Tier Breakdown ---\n")
+    tier_counts = (
+        df_jobs["filter_tier"].fillna("NONE")
+        .value_counts()
+        .reset_index()
+    )
+    tier_counts.columns = ["tier", "count"]
+    tier_counts["% of total"] = (tier_counts["count"] / total * 100).round(1)
+    buf.write(tabulate(tier_counts, headers="keys", tablefmt="simple", showindex=False) + "\n")
+
+    buf.write("\n--- Top 15 Direct Employers ---\n")
+    top_cos = (
+        df_jobs[~df_jobs["is_staffing_agency"].fillna(False)]
+        .groupby("company_name")
+        .size()
+        .sort_values(ascending=False)
+        .head(15)
+        .reset_index(name="postings")
+    )
+    buf.write(tabulate(top_cos, headers="keys", tablefmt="simple", showindex=False) + "\n")
+
+    if "date_posted" in df_jobs.columns:
+        buf.write("\n--- Job Freshness ---\n")
+        today = pd.Timestamp.today().normalize()
+        df_jobs["date_posted"] = pd.to_datetime(df_jobs["date_posted"], errors="coerce")
+        fresh_1d = int((df_jobs["date_posted"] >= today - pd.Timedelta(days=1)).sum())
+        fresh_3d = int((df_jobs["date_posted"] >= today - pd.Timedelta(days=3)).sum())
+        fresh_7d = int((df_jobs["date_posted"] >= today - pd.Timedelta(days=7)).sum())
+        unknown  = int(df_jobs["date_posted"].isna().sum())
+        buf.write(f"  Posted within 1 day  : {fresh_1d:>4}\n")
+        buf.write(f"  Posted within 3 days : {fresh_3d:>4}\n")
+        buf.write(f"  Posted within 7 days : {fresh_7d:>4}\n")
+        buf.write(f"  Older / unknown      : {unknown + (total - fresh_7d - unknown):>4}\n")
+
+    if not salary_df.empty:
+        buf.write("\n--- Salary: Remote vs On-Site (Annual) ---\n")
+        annual_salary = salary_df[salary_df["salary_type"] == "annual"].copy()
+        if not annual_salary.empty:
+            annual_salary["midpoint"] = (annual_salary["salary_min"] + annual_salary["salary_max"]) / 2
+            sal_compare = []
+            for label, mask in [("Remote", annual_salary["is_remote"] == True),
+                                 ("On-site", annual_salary["is_remote"] == False)]:
+                grp = annual_salary[mask]
+                if not grp.empty:
+                    sal_compare.append({
+                        "type":       label,
+                        "count":      len(grp),
+                        "median_mid": f"${grp['midpoint'].median():,.0f}",
+                        "median_min": f"${grp['salary_min'].median():,.0f}",
+                        "median_max": f"${grp['salary_max'].median():,.0f}",
+                    })
+            if sal_compare:
+                buf.write(tabulate(sal_compare, headers="keys", tablefmt="simple", showindex=False) + "\n")
+
     buf.write("\n" + "=" * 60 + "\n")
     return buf.getvalue()
 
