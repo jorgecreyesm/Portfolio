@@ -101,6 +101,32 @@ PAGES_PER_QUERY = 5              # 15 results per page
 
 ---
 
+## Automation
+
+Runs automatically Mon–Fri at 7:00 AM via a macOS `launchd` LaunchAgent
+(`com.jorgereyeso.jobscraper`), invoking:
+
+```bash
+/opt/anaconda3/bin/python3 main.py run-all --save
+```
+
+Key points for running this unattended:
+
+- `WorkingDirectory` is set to the project root — `schema.sql`, `reports/`,
+  `profile.json`, and `.env` are all loaded via relative paths, so the
+  scheduler must `cd` here first
+- The full path to the conda interpreter is used explicitly, since a bare
+  `python3` on a scheduler's minimal `PATH` won't resolve to the
+  environment with `jobspy`/`psycopg2` installed
+- `--save` is required for `analyze`/`match` to write CSVs to `reports/` —
+  omitting it runs the full pipeline with no file output
+- stdout/stderr are logged to `~/Library/Logs/jobscraper.log` /
+  `jobscraper.error.log`
+- Requires PostgreSQL to be running (via Postgres.app) at the scheduled
+  time, which in turn requires an active GUI login session
+
+---
+
 ## Sample Output
 
 ```
