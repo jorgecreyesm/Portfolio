@@ -11,6 +11,8 @@ Run standalone (loads the most recent processed CSVs from data/processed/):
     python -m src.load.postgres
 """
 
+import os
+
 from sqlalchemy import create_engine, text
 
 from src.config import (
@@ -28,12 +30,40 @@ import pandas as pd
 logger = get_logger(__name__)
 
 
-def get_engine():
-    url = (
-        f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password'] or ''}"
-        f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
-    )
-    return create_engine(url)
+def _normalize_url(url: str) -> str:
+    """
+    Hosted providers (Neon, Supabase, Heroku) hand out `postgresql://` or
+    `postgres://` URLs; SQLAlchemy needs the driver named explicitly.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
+def get_engine(url: str | None = None):
+    """
+    Build a SQLAlchemy engine.
+
+    Resolution order:
+      1. an explicit `url` argument -- the deployed dashboard passes one
+         read from st.secrets, which are not exposed as environment
+         variables on Streamlit Community Cloud;
+      2. DATABASE_URL from the environment -- hosted Postgres;
+      3. the individual DB_* parts from .env -- local development.
+
+    Resolved at call time rather than import time so the deployed app can
+    supply credentials that don't exist in the environment. pool_pre_ping
+    is on because hosted free tiers autosuspend and hand back dead
+    connections after an idle period.
+    """
+    url = url or os.getenv("DATABASE_URL")
+    if not url:
+        url = (
+            f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password'] or ''}"
+            f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
+        )
+    return create_engine(_normalize_url(url), pool_pre_ping=True)
 
 
 def _upsert(engine, table: str, df: pd.DataFrame, pk_cols: list[str]) -> int:

@@ -1,0 +1,20 @@
+# Deployment manifest for Streamlit Community Cloud.
+#
+# This file lives beside app.py on purpose: Community Cloud searches the
+# entrypoint's directory and then the repository root, and never the
+# intermediate cv_health_dashboard/ directory. Since this repo is a
+# multi-project portfolio, a root-level requirements.txt would apply to
+# every app in it, so the manifest belongs here.
+#
+# Pinned to the versions the dashboard was developed and verified against.
+# Only what the dashboard itself imports -- the extraction stack (requests)
+# is not needed to serve the app; see ../requirements.txt for the full
+# pipeline environment.
+
+streamlit==1.59.2
+pandas==3.0.3
+numpy==2.5.1
+plotly==6.9.0
+SQLAlchemy==2.0.51
+psycopg2-binary==2.9.12
+python-dotenv==1.2.2

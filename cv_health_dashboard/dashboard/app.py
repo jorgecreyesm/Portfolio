@@ -50,9 +50,23 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
+def _database_url() -> str | None:
+    """
+    Connection string for the deployed app. Streamlit Community Cloud
+    supplies secrets through st.secrets rather than the environment, so
+    read it here and hand it to get_engine(); locally there is no secrets
+    file and get_engine() falls back to .env. Accessing st.secrets with no
+    secrets configured raises, hence the guard.
+    """
+    try:
+        return st.secrets["DATABASE_URL"]
+    except Exception:
+        return None
+
+
 @st.cache_data(ttl=600)
 def load_data() -> dict[str, pd.DataFrame]:
-    engine = get_engine()
+    engine = get_engine(_database_url())
     county = pd.read_sql("SELECT * FROM dim_county", engine)
     acs = pd.read_sql("SELECT * FROM fact_acs ORDER BY acs_year", engine)
     nass = pd.read_sql("SELECT * FROM fact_nass ORDER BY nass_year", engine)
