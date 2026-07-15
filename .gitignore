@@ -10,3 +10,12 @@
 !R_Projects/**/figure-gfm/*.png
 .env
 FUTURE_PROJECTS.md
+.claude/
+
+# Excel lock/temp files
+~$*.xlsx
+
+# Raw vendor data dumps — too large for LFS quota.
+# Download from the source URL documented in each project README.
+City_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv
+City_zori_uc_sfrcondomfr_sm_month.csv
