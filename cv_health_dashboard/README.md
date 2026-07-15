@@ -4,6 +4,8 @@ An end-to-end data pipeline and interactive dashboard examining the relationship
 
 Built to demonstrate production ETL design: modular extraction, validation at every transformation step, PostgreSQL storage, automated run reporting, and a Streamlit front end.
 
+![Dashboard overview](docs/images/overview.png)
+
 ## Why this region
 
 The Central Valley produces a large share of the nation's food while its residents face some of California's highest poverty rates and worst chronic disease burdens. This project puts economic and health data for the region side by side and quantifies the relationships between them.
@@ -47,12 +49,15 @@ cv-health-dashboard/
 │   └── utils/               # shared logging, HTTP retry client
 ├── sql/                     # schema DDL and analysis queries
 ├── dashboard/               # Streamlit app
+│   ├── app.py
+│   └── requirements.txt     # deploy manifest (must sit beside app.py)
+├── docs/images/             # README screenshots
 ├── data/raw/                # timestamped raw pulls (gitignored)
 ├── data/processed/          # cleaned outputs (gitignored)
 ├── reports/                 # per-run summary CSV and markdown report
 ├── logs/                    # per-run pipeline logs
 ├── tests/
-├── requirements.txt
+├── requirements.txt         # full pipeline environment
 ├── .env.example
 └── README.md
 ```
@@ -89,13 +94,31 @@ streamlit run dashboard/app.py
 
 The Streamlit app has seven tabs: an overview, economic trends, health outcomes,
 agriculture, a **COVID Impact** analysis, a correlations explorer, and a raw-data
-browser. The COVID Impact tab isolates two back-to-back shocks in the data:
+browser. Every chart uses a fixed county-to-color mapping, so a county reads as the
+same color in every view.
+
+### COVID impact
+
+The COVID Impact tab isolates two back-to-back shocks in the data:
 
 - **Excess mortality** — each county's all-cause death rate measured against its own
   2018–19 pre-pandemic baseline, showing the 2020–21 spike and an incomplete recovery.
+  The region peaked at +221 deaths per 100k in 2021 and was still +48 above baseline
+  in 2023.
 - **Nominal vs. real income** — ACS median household income deflated to constant
   dollars with the BLS CPI-U, so the post-2021 inflation surge that eroded on-paper
-  income gains is visible rather than hidden in nominal figures.
+  income gains is visible rather than hidden in nominal figures. Fresno's income rose
+  39% on paper between 2018 and 2023 but only 15% in real terms.
+
+![COVID impact analysis](docs/images/covid-impact.png)
+
+### Correlations
+
+Pairs any economic metric against any health outcome, with a fitted trend line and a
+Pearson coefficient — deliberately framed with its own small-sample caveat, since
+seven counties at one point in time is a starting hypothesis, not a finding.
+
+![Correlations explorer](docs/images/correlations.png)
 
 ## Limitations
 

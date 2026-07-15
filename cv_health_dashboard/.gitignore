@@ -17,6 +17,13 @@ __pycache__/
 .venv/
 venv/
 
+# Documentation assets.
+# The repository root .gitignore blanket-ignores *.png to keep analysis output
+# from bloating the repo. These screenshots are referenced by README.md and have
+# to be tracked, so re-include them here -- rules in a nested .gitignore override
+# the parent's. Same intent as the root's R Markdown figure exception.
+!docs/images/*.png
+
 # OS / editor
 .DS_Store
 .vscode/
