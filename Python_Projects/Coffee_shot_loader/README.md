@@ -28,13 +28,30 @@ fine for personal use; a Vite build is the upgrade path if this ever heads to an
 
 ## Local development
 
+Use a virtual environment and call it explicitly (`.venv/bin/python -m ...`).
+This sidesteps PATH/`activate`/shell-hash issues — especially under conda's
+`(base)` env, where a bare `uvicorn` can resolve to the wrong interpreter and
+fail with `ModuleNotFoundError: No module named 'psycopg2'`.
+
 ```bash
-pip install -r requirements.txt
-cp .env.example .env          # then edit for your local Postgres
-uvicorn api:app --reload --port 8000
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env                      # then edit for your local Postgres
+.venv/bin/python -m uvicorn api:app --reload --port 8000
+```
+
+To point at hosted Postgres instead of the `.env` values, export a URL first:
+
+```bash
+export DATABASE_URL='postgresql://user:pass@host/db?sslmode=require'
+.venv/bin/python -m uvicorn api:app --port 8000
 ```
 
 Open <http://localhost:8000>. Tables are created automatically on first run.
+
+> Prefer `.venv/bin/python -m uvicorn` over a bare `uvicorn`, even after
+> `source .venv/bin/activate` — the explicit form always runs the venv's
+> interpreter where the dependencies are installed.
 
 ## Deploy to Fly.io + Neon
 

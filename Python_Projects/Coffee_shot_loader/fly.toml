@@ -1,21 +1,22 @@
-# Fly.io config for the Espresso Tracker web app.
-# Rename `app` to something globally unique before first deploy, e.g.
-#   fly launch --no-deploy   (generates a name and may rewrite this file)
-# or edit it here and run `fly deploy`.
+# fly.toml app configuration file generated for coffee-shot-loader on 2026-07-22T14:39:21-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "espresso-tracker"
-primary_region = "sjc"  # San Jose — closest Fly region to the Central Valley
+app = 'coffee-shot-loader'
+primary_region = 'sjc'
 
 [build]
-  dockerfile = "Dockerfile"
-
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false   # keep it warm — no cold start when opening on your phone
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
