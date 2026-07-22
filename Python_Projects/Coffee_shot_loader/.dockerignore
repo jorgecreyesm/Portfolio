@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+scraps/
+# CLI-only tools, not part of the web app
+log_shot.py
+log_shot_v2.py
+.git

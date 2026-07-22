@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+scraps/
+
+# PWA app icons are real assets — override the repo-wide *.png ignore.
+!icon-192.png
+!icon-512.png
