@@ -16,6 +16,7 @@
 <style>
   html, body {
     margin: 0; padding: 0;
+    width: 100%; max-width: 100%; overflow-x: hidden;
     background: #1a1612;
     min-height: 100vh;
     font-family: 'Manrope', system-ui, sans-serif;
@@ -29,6 +30,12 @@
     padding: 24px;
     box-sizing: border-box;
   }
+  /* On phones the app renders full-bleed (no desktop device frame),
+     so drop the centering + padding that would clip it sideways. */
+  @media (max-width: 500px) {
+    body { display: block; padding: 0; }
+    #root { display: block; width: 100%; }
+  }
   #root { display: flex; justify-content: center; }
 </style>
 </head>
@@ -39,9 +46,9 @@
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-  <script type="text/babel" src="ios-frame.jsx"></script>
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
-  <script type="text/babel" src="espresso-app.jsx"></script>
+  <script type="text/babel" src="ios-frame.jsx?v=2"></script>
+  <script type="text/babel" src="tweaks-panel.jsx?v=2"></script>
+  <script type="text/babel" src="espresso-app.jsx?v=2"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');

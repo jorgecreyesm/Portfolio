@@ -1372,7 +1372,7 @@ function App() {
   return (
     <>
       {isMobile
-        ? <div style={{ height: '100dvh', overflow: 'hidden', position: 'relative' }}>{content}</div>
+        ? <div style={{ width: '100%', height: '100dvh', overflow: 'hidden', position: 'relative' }}>{content}</div>
         : <IOSDevice width={402} height={874} dark={true}>{content}</IOSDevice>
       }
       <TweaksPanel title="Tweaks">
